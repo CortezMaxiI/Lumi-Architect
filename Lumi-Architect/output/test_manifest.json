@@ -1,0 +1,71 @@
+{
+    "manifest_version": "1.0.0",
+    "target_environment": {
+        "name": "csharp-desktop-enterprise",
+        "description": "Entorno completo de desarrollo Desktop C# .NET 8 con SQL Server y Profiling Tools",
+        "inferred_languages": [
+            "C#",
+            "SQL",
+            "XAML"
+        ],
+        "inferred_frameworks": [
+            ".NET 8",
+            "WPF",
+            "WinForms"
+        ]
+    },
+    "packages": [
+        {
+            "package_id": "Git.Git",
+            "display_name": "Git",
+            "package_manager": "winget",
+            "version_requirement": "latest",
+            "version_check_command": "git --version",
+            "installation_flags": [
+                "--silent"
+            ],
+            "priority_level": 10,
+            "is_critical": true,
+            "depends_on": [],
+            "category": "tool"
+        },
+        {
+            "package_id": "Microsoft.DotNet.SDK.8",
+            "display_name": ".NET 8 SDK",
+            "package_manager": "winget",
+            "version_requirement": "8.x",
+            "version_check_command": "dotnet --list-sdks",
+            "installation_flags": [
+                "--silent"
+            ],
+            "priority_level": 15,
+            "is_critical": true,
+            "depends_on": [],
+            "category": "runtime"
+        },
+        {
+            "package_id": "Microsoft.VisualStudioCode",
+            "display_name": "Visual Studio Code",
+            "package_manager": "winget",
+            "version_requirement": "latest",
+            "version_check_command": "code --version",
+            "installation_flags": [
+                "--silent"
+            ],
+            "priority_level": 45,
+            "is_critical": false,
+            "depends_on": [],
+            "category": "ide"
+        }
+    ],
+    "environment_variables": [],
+    "post_install_commands": [
+        {
+            "command": "dotnet tool install -g dotnet-counters",
+            "description": "Install .NET Performance Counters CLI Tool",
+            "requires_restart": false,
+            "is_critical": false
+        }
+    ],
+    "ai_reasoning": "Test manifest for validating the Forge Executor. Includes Git, .NET SDK, and VS Code with a post-install command."
+}

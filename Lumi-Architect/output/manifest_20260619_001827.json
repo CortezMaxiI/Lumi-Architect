@@ -1,0 +1,53 @@
+{
+  "manifest_version": "1.0.0",
+  "target_environment": {
+    "name": "custom-dev-environment",
+    "description": "Environment for: QUIERO PROGRAMAR UNA APP DE CLIMA\n",
+    "inferred_languages": [
+      "JavaScript",
+      "Python"
+    ],
+    "inferred_frameworks": [
+      "Node.js"
+    ]
+  },
+  "packages": [
+    {
+      "package_id": "Git.Git",
+      "display_name": "Git",
+      "package_manager": "winget",
+      "version_requirement": "latest",
+      "priority_level": 10,
+      "is_critical": true,
+      "category": "tool"
+    },
+    {
+      "package_id": "OpenJS.NodeJS.LTS",
+      "display_name": "Node.js LTS",
+      "package_manager": "winget",
+      "version_requirement": "latest",
+      "priority_level": 20,
+      "is_critical": true,
+      "category": "runtime"
+    },
+    {
+      "package_id": "Python.Python.3.11",
+      "display_name": "Python 3.11",
+      "package_manager": "winget",
+      "version_requirement": "3.11",
+      "priority_level": 25,
+      "is_critical": true,
+      "category": "runtime"
+    },
+    {
+      "package_id": "Microsoft.VisualStudioCode",
+      "display_name": "Visual Studio Code",
+      "package_manager": "winget",
+      "version_requirement": "latest",
+      "priority_level": 50,
+      "is_critical": false,
+      "category": "ide"
+    }
+  ],
+  "ai_reasoning": "Standard development environment with Git, Node.js, Python, and VS Code."
+}

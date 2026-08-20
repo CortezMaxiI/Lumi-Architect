@@ -1,0 +1,29 @@
+# Lumi: Architect - Python Dependencies
+# =====================================
+# Core dependencies for the Brain module
+
+# JSON Schema validation
+jsonschema>=4.20.0
+
+# Rich terminal output for CLI (future)
+rich>=13.7.0
+
+# TOML config parsing
+tomli>=2.0.0;python_version<"3.11"
+
+# HTTP client for LLM API calls (future)
+httpx>=0.26.0
+
+# Type hints support
+typing-extensions>=4.9.0
+
+# Development dependencies (install with: pip install -e ".[dev]")
+# pytest>=8.0.0
+# pytest-cov>=4.1.0
+# black>=24.0.0
+# ruff>=0.2.0
+
+# API Backend Dependencies
+fastapi>=0.100.0
+uvicorn>=0.23.0
+pydantic>=2.0.0

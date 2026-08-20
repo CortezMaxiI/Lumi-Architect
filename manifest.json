@@ -1,0 +1,16 @@
+[
+  {
+    "package_id": "Python.Python.3.13",
+    "version_requirement": ">=3.11",
+    "priority_level": "critical",
+    "validation_command": "python --version",
+    "reasoning": "Python is required to run the Lumi: Architect codebase."
+  },
+  {
+    "package_id": "Git.Git",
+    "version_requirement": "latest",
+    "priority_level": "high",
+    "validation_command": "git --version",
+    "reasoning": "Git is useful for version control and pulling updates."
+  }
+]

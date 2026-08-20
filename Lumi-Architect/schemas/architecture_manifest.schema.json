@@ -1,0 +1,191 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://lumi-architect.dev/schemas/architecture_manifest.schema.json",
+  "title": "Architecture Manifest",
+  "description": "Schema for validating the AI-generated infrastructure manifest in Lumi: Architect.",
+  "type": "object",
+  "required": ["manifest_version", "target_environment", "packages"],
+  "properties": {
+    "manifest_version": {
+      "type": "string",
+      "description": "Semantic version of the manifest schema.",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "examples": ["1.0.0"]
+    },
+    "target_environment": {
+      "type": "object",
+      "description": "Metadata about the environment being configured.",
+      "required": ["name", "description"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Short identifier for the environment (e.g., 'fullstack-mern', 'data-science-python').",
+          "examples": ["fullstack-mern", "data-science-python", "csharp-gamedev"]
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable description of the target stack."
+        },
+        "inferred_languages": {
+          "type": "array",
+          "description": "Programming languages inferred from the user's request.",
+          "items": { "type": "string" },
+          "examples": [["Python", "JavaScript"]]
+        },
+        "inferred_frameworks": {
+          "type": "array",
+          "description": "Frameworks and libraries inferred from the user's request.",
+          "items": { "type": "string" },
+          "examples": [["React", "Express", "MongoDB"]]
+        }
+      }
+    },
+    "packages": {
+      "type": "array",
+      "description": "Ordered list of packages to install. Order matters for dependency resolution.",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/definitions/PackageDefinition"
+      }
+    },
+    "environment_variables": {
+      "type": "array",
+      "description": "Environment variables to set after installation.",
+      "items": {
+        "$ref": "#/definitions/EnvironmentVariable"
+      }
+    },
+    "post_install_commands": {
+      "type": "array",
+      "description": "Commands to run after all packages are installed (e.g., npm install -g).",
+      "items": {
+        "$ref": "#/definitions/PostInstallCommand"
+      }
+    },
+    "ai_reasoning": {
+      "type": "string",
+      "description": "Internal reasoning log from the AI explaining dependency choices. For auditability."
+    }
+  },
+  "definitions": {
+    "PackageDefinition": {
+      "type": "object",
+      "description": "Definition of a single package to install.",
+      "required": ["package_id", "package_manager", "priority_level", "validation_command"],
+      "properties": {
+        "package_id": {
+          "type": "string",
+          "description": "Official package identifier for the package manager (e.g., 'Python.Python.3.11' for Winget).",
+          "examples": ["Python.Python.3.11", "OpenJS.NodeJS.LTS", "Git.Git"]
+        },
+        "display_name": {
+          "type": "string",
+          "description": "Human-friendly name for UI display.",
+          "examples": ["Python 3.11", "Node.js LTS", "Git"]
+        },
+        "package_manager": {
+          "type": "string",
+          "description": "The package manager to use for installation.",
+          "enum": ["winget", "choco"],
+          "default": "winget"
+        },
+        "version_requirement": {
+          "type": "string",
+          "description": "Version constraint (e.g., '>=3.10', 'latest'). Use 'latest' if no specific version is needed.",
+          "default": "latest",
+          "examples": [">=3.10", "latest", "18.x"]
+        },
+        "version_check_command": {
+          "type": "string",
+          "description": "Shell command to verify the installed version. Used for Discovery phase.",
+          "examples": ["python --version", "node --version", "git --version"]
+        },
+        "installation_flags": {
+          "type": "array",
+          "description": "Additional flags to pass to the package manager during installation.",
+          "items": { "type": "string" },
+          "default": ["--silent"],
+          "examples": [["--silent", "--accept-package-agreements"], ["--force"]]
+        },
+        "priority_level": {
+          "type": "integer",
+          "description": "Installation order priority. Lower numbers install first. Use for dependency ordering.",
+          "minimum": 1,
+          "maximum": 100,
+          "examples": [1, 10, 50]
+        },
+        "is_critical": {
+          "type": "boolean",
+          "description": "If true, installation failure will halt the entire Forge. If false, log error and continue.",
+          "default": true
+        },
+        "depends_on": {
+          "type": "array",
+          "description": "List of package_ids that must be installed before this one.",
+          "items": { "type": "string" },
+          "examples": [["Git.Git"]]
+        },
+        "category": {
+          "type": "string",
+          "description": "Logical grouping for the package.",
+          "enum": ["runtime", "database", "ide", "extension", "tool", "library", "build-tool"],
+          "examples": ["runtime", "ide"]
+        }
+      }
+    },
+    "EnvironmentVariable": {
+      "type": "object",
+      "description": "An environment variable to configure.",
+      "required": ["name", "value", "scope"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Name of the environment variable.",
+          "examples": ["PYTHON_HOME", "JAVA_HOME"]
+        },
+        "value": {
+          "type": "string",
+          "description": "Value to set. Can use placeholders like %ProgramFiles%.",
+          "examples": ["%ProgramFiles%\\Python311"]
+        },
+        "scope": {
+          "type": "string",
+          "description": "Scope of the variable: 'user' or 'machine' (requires admin).",
+          "enum": ["user", "machine"],
+          "default": "user"
+        },
+        "append_to_path": {
+          "type": "boolean",
+          "description": "If true, append this value to the existing PATH instead of creating a new variable.",
+          "default": false
+        }
+      }
+    },
+    "PostInstallCommand": {
+      "type": "object",
+      "description": "A command to run after package installation.",
+      "required": ["command", "description"],
+      "properties": {
+        "command": {
+          "type": "string",
+          "description": "The shell command to execute.",
+          "examples": ["npm install -g typescript", "pip install jupyter"]
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable explanation of what this command does."
+        },
+        "requires_restart": {
+          "type": "boolean",
+          "description": "If true, a terminal/session restart is recommended after this command.",
+          "default": false
+        },
+        "is_critical": {
+          "type": "boolean",
+          "description": "If true, command failure halts the Forge.",
+          "default": false
+        }
+      }
+    }
+  }
+}
