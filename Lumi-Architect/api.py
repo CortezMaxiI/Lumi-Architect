@@ -12,9 +12,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
 
-from brain.prompt_engine import PromptEngine, PromptEngineResult
+from brain.prompt_engine import PromptEngine, PromptEngineResult, validate_manifest
+from brain.llm_client import LLMClient
 
 app = FastAPI(title="Lumi: Architect API", description="AI-Powered Infrastructure Forge API")
+llm_client = LLMClient()
 
 # Allow CORS for the Vite frontend
 app.add_middleware(
@@ -31,7 +33,7 @@ HEALTH_CHECK_SCRIPT = SCRIPT_DIR / "forge" / "health_check.ps1"
 OUTPUT_DIR = SCRIPT_DIR / "output"
 OUTPUT_DIR.mkdir(exist_ok=True)
 
-# Mock responses from main.py for demo mode
+# Mock responses from main.py for demo mode (strictly schema-compliant)
 DEMO_MANIFEST = {
     "manifest_version": "1.0.0",
     "target_environment": {
@@ -46,6 +48,8 @@ DEMO_MANIFEST = {
             "display_name": "Git",
             "package_manager": "winget",
             "version_requirement": "latest",
+            "version_check_command": "git --version",
+            "installation_flags": ["--silent"],
             "priority_level": 10,
             "is_critical": True,
             "category": "tool"
@@ -55,6 +59,8 @@ DEMO_MANIFEST = {
             "display_name": "Node.js LTS",
             "package_manager": "winget",
             "version_requirement": "latest",
+            "version_check_command": "node --version",
+            "installation_flags": ["--silent"],
             "priority_level": 20,
             "is_critical": True,
             "category": "runtime"
@@ -64,6 +70,8 @@ DEMO_MANIFEST = {
             "display_name": "Python 3.11",
             "package_manager": "winget",
             "version_requirement": "3.11",
+            "version_check_command": "python --version",
+            "installation_flags": ["--silent"],
             "priority_level": 25,
             "is_critical": True,
             "category": "runtime"
@@ -73,11 +81,15 @@ DEMO_MANIFEST = {
             "display_name": "Visual Studio Code",
             "package_manager": "winget",
             "version_requirement": "latest",
+            "version_check_command": "code --version",
+            "installation_flags": ["--silent"],
             "priority_level": 50,
             "is_critical": False,
             "category": "ide"
         }
     ],
+    "environment_variables": [],
+    "post_install_commands": [],
     "ai_reasoning": "Standard development environment with Git, Node.js, Python, and VS Code."
 }
 
@@ -99,23 +111,41 @@ def save_manifest(manifest: dict) -> Path:
 @app.post("/api/forge/plan")
 async def create_plan(request: PlanRequest):
     """Generate an infrastructure manifest based on a natural language prompt."""
-    if request.demo_mode:
-        manifest = DEMO_MANIFEST.copy()
-        manifest["target_environment"]["description"] = f"Environment for: {request.prompt}"
-        return {
-            "success": True,
-            "manifest": manifest,
-            "thinking": "Step A - Stack Analysis...\nStep B - Dependency Tree...\nStep C - Compatibility Check..."
-        }
+    engine = PromptEngine()
+    req_payload = engine.prepare_request(request.prompt)
+
+    if request.demo_mode and not llm_client.is_configured():
+        raw_response = llm_client._generate_fallback(request.prompt)
     else:
-        # Production LLM Call
-        engine = PromptEngine()
-        # Assume engine has a method for this, returning a mock for now
-        raise HTTPException(status_code=501, detail="Real LLM call not implemented in demo API")
+        raw_response = await llm_client.agenerate(
+            system_prompt=req_payload["system"],
+            user_prompt=req_payload["user"]
+        )
+
+    result = engine.parse_response(raw_response, validate_schema=True)
+    if not result.success:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Failed to generate valid architecture manifest: {result.error}"
+        )
+
+    return {
+        "success": True,
+        "manifest": result.manifest,
+        "thinking": result.thinking or "Reasoning completed successfully.",
+        "provider": llm_client.provider if llm_client.is_configured() else "offline-template"
+    }
 
 @app.post("/api/forge/execute")
 async def execute_forge(request: ExecuteRequest):
     """Execute the forge script with the provided manifest."""
+    is_valid, err_msg = validate_manifest(request.manifest)
+    if not is_valid:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Manifest failed architecture schema validation: {err_msg}"
+        )
+    
     manifest_path = save_manifest(request.manifest)
     
     ps_command = [

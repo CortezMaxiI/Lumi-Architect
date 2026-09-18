@@ -20,6 +20,13 @@ import argparse
 from pathlib import Path
 from datetime import datetime
 
+# Enforce UTF-8 encoding on Windows to prevent UnicodeEncodeError with Rich terminal characters
+if sys.platform == "win32":
+    if sys.stdout and hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    if sys.stderr and hasattr(sys.stderr, "reconfigure"):
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 # Rich imports for beautiful CLI
 try:
     from rich.console import Console
@@ -37,7 +44,8 @@ except ImportError:
     sys.exit(1)
 
 # Project imports
-from brain.prompt_engine import PromptEngine, PromptEngineResult
+from brain.prompt_engine import PromptEngine, PromptEngineResult, validate_manifest
+from brain.llm_client import LLMClient
 
 # =============================================================================
 # CONFIGURATION
@@ -312,32 +320,23 @@ def get_user_request() -> str:
 
 def simulate_llm_call(user_request: str, demo_mode: bool = False) -> PromptEngineResult:
     """
-    Simulate or make actual LLM call.
-    
-    In demo mode, returns a mock response.
-    In production, this would call the actual LLM API.
+    Execute AI reasoning flow using LLMClient with automated offline fallback.
     """
     engine = PromptEngine()
+    client = LLMClient()
     
-    if demo_mode:
-        # Use mock response
-        mock = DEMO_RESPONSES["default"]
-        
-        # Customize based on keywords in request
-        manifest = mock["manifest"].copy()
-        manifest["target_environment"]["description"] = f"Environment for: {user_request}"
-        
-        result = PromptEngineResult(
-            success=True,
-            manifest=manifest,
-            thinking=mock["thinking"]
-        )
-        return result
+    if demo_mode and not client.is_configured():
+        raw_response = client._generate_fallback(user_request)
     else:
-        # Production: Would call actual LLM API here
-        # For now, return demo response with a notice
-        console.print("[yellow]Note: LLM API not configured. Using demo response.[/yellow]")
-        return simulate_llm_call(user_request, demo_mode=True)
+        if not client.is_configured():
+            console.print("[dim yellow]Note: No API key found in .env; utilizing offline intelligent reasoning engine.[/dim yellow]")
+        req_payload = engine.prepare_request(user_request)
+        raw_response = client.generate(
+            system_prompt=req_payload["system"],
+            user_prompt=req_payload["user"]
+        )
+    
+    return engine.parse_response(raw_response, validate_schema=True)
 
 
 def process_request(user_request: str, demo_mode: bool = False) -> PromptEngineResult:
@@ -389,8 +388,21 @@ def save_manifest(manifest: dict) -> Path:
 
 
 def execute_forge(manifest_path: Path) -> bool:
-    """Execute the PowerShell Forge script."""
-    
+    """Execute the PowerShell Forge script after validating manifest schema."""
+    try:
+        with open(manifest_path, "r", encoding="utf-8") as f:
+            manifest = json.load(f)
+        is_valid, err_msg = validate_manifest(manifest)
+        if not is_valid:
+            show_error(
+                "Manifest failed architecture schema validation before execution.",
+                err_msg
+            )
+            return False
+    except Exception as e:
+        show_error(f"Failed to read or validate manifest: {e}")
+        return False
+
     console.print()
     console.print(Panel(
         "[bold]Initiating Forge Execution[/bold]\n\n"

@@ -10,8 +10,47 @@ explicitly reasons about dependencies before generating the JSON output.
 
 import json
 import re
-from typing import Optional
+from pathlib import Path
+from typing import Optional, Tuple
 from dataclasses import dataclass
+
+import jsonschema
+from jsonschema import Draft7Validator, ValidationError
+
+SCHEMA_PATH = Path(__file__).parent.parent / "schemas" / "architecture_manifest.schema.json"
+
+
+def get_manifest_schema() -> dict:
+    """Loads and caches the Architecture Manifest JSON Schema."""
+    if not hasattr(get_manifest_schema, "_cached_schema"):
+        with open(SCHEMA_PATH, "r", encoding="utf-8") as f:
+            get_manifest_schema._cached_schema = json.load(f)
+    return get_manifest_schema._cached_schema
+
+
+def validate_manifest(manifest: dict) -> Tuple[bool, Optional[str]]:
+    """
+    Validates an Architecture Manifest against the formal JSON Schema.
+    
+    Args:
+        manifest: Dictionary containing the parsed manifest.
+        
+    Returns:
+        Tuple of (is_valid, error_message). If valid, error_message is None.
+    """
+    schema = get_manifest_schema()
+    validator = Draft7Validator(schema)
+    errors = sorted(validator.iter_errors(manifest), key=lambda e: e.path)
+    
+    if not errors:
+        return True, None
+    
+    error_messages = []
+    for err in errors:
+        path = " -> ".join([str(p) for p in err.path]) if err.path else "root"
+        error_messages.append(f"[{path}] {err.message}")
+    
+    return False, "; ".join(error_messages)
 
 
 # =============================================================================
@@ -167,7 +206,7 @@ class PromptEngineResult:
     raw_response: Optional[str] = None
 
 
-def extract_json_from_response(response: str) -> PromptEngineResult:
+def extract_json_from_response(response: str, validate_schema: bool = True) -> PromptEngineResult:
     """
     Extracts the JSON manifest and thinking block from an LLM response.
     
@@ -179,10 +218,12 @@ def extract_json_from_response(response: str) -> PromptEngineResult:
     {manifest}
     ```
     
-    This function parses both blocks.
+    This function parses both blocks and validates the manifest against
+    architecture_manifest.schema.json.
     
     Args:
         response: Raw text response from the LLM.
+        validate_schema: Whether to validate the extracted manifest against JSON Schema.
         
     Returns:
         PromptEngineResult with parsed manifest and thinking, or error details.
@@ -214,6 +255,12 @@ def extract_json_from_response(response: str) -> PromptEngineResult:
     # Parse JSON
     try:
         manifest = json.loads(json_str)
+        if validate_schema:
+            is_valid, validation_err = validate_manifest(manifest)
+            if not is_valid:
+                result.error = f"Schema validation failed: {validation_err}"
+                result.manifest = manifest
+                return result
         result.manifest = manifest
         result.success = True
     except json.JSONDecodeError as e:
@@ -297,7 +344,7 @@ class PromptEngine:
             "user": build_user_prompt(user_input, system_context)
         }
     
-    def parse_response(self, llm_response: str) -> PromptEngineResult:
+    def parse_response(self, llm_response: str, validate_schema: bool = True) -> PromptEngineResult:
         """
         Parses an LLM response into a structured manifest.
         
@@ -307,13 +354,14 @@ class PromptEngine:
         Returns:
             PromptEngineResult containing the parsed manifest or error.
         """
-        return extract_json_from_response(llm_response)
+        return extract_json_from_response(llm_response, validate_schema=validate_schema)
     
     def process(
         self, 
         user_input: str, 
         llm_response: str,
-        system_context: Optional[dict] = None
+        system_context: Optional[dict] = None,
+        validate_schema: bool = True
     ) -> PromptEngineResult:
         """
         Full pipeline: validate input and parse LLM response.
@@ -325,11 +373,12 @@ class PromptEngine:
             user_input: Original user request (for logging/audit).
             llm_response: Response from the LLM.
             system_context: Optional system context used in the request.
+            validate_schema: Whether to validate the manifest against JSON Schema.
             
         Returns:
             PromptEngineResult with parsed manifest.
         """
-        result = self.parse_response(llm_response)
+        result = self.parse_response(llm_response, validate_schema=validate_schema)
         
         # Attach original request info for auditability
         if result.success and result.manifest:

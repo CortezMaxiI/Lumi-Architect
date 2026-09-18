@@ -1,16 +1,60 @@
-[
-  {
-    "package_id": "Python.Python.3.13",
-    "version_requirement": ">=3.11",
-    "priority_level": "critical",
-    "validation_command": "python --version",
-    "reasoning": "Python is required to run the Lumi: Architect codebase."
+{
+  "manifest_version": "1.0.0",
+  "target_environment": {
+    "name": "lumi-architect-runtime",
+    "description": "Base development and execution environment for Lumi: Architect",
+    "inferred_languages": [
+      "Python"
+    ],
+    "inferred_frameworks": [
+      "FastAPI"
+    ]
   },
-  {
-    "package_id": "Git.Git",
-    "version_requirement": "latest",
-    "priority_level": "high",
-    "validation_command": "git --version",
-    "reasoning": "Git is useful for version control and pulling updates."
-  }
-]
+  "packages": [
+    {
+      "package_id": "Git.Git",
+      "display_name": "Git",
+      "package_manager": "winget",
+      "version_requirement": "latest",
+      "version_check_command": "git --version",
+      "installation_flags": [
+        "--silent"
+      ],
+      "priority_level": 10,
+      "is_critical": true,
+      "depends_on": [],
+      "category": "tool"
+    },
+    {
+      "package_id": "Python.Python.3.11",
+      "display_name": "Python 3.11",
+      "package_manager": "winget",
+      "version_requirement": ">=3.11",
+      "version_check_command": "python --version",
+      "installation_flags": [
+        "--silent"
+      ],
+      "priority_level": 15,
+      "is_critical": true,
+      "depends_on": [],
+      "category": "runtime"
+    },
+    {
+      "package_id": "Microsoft.VisualStudioCode",
+      "display_name": "Visual Studio Code",
+      "package_manager": "winget",
+      "version_requirement": "latest",
+      "version_check_command": "code --version",
+      "installation_flags": [
+        "--silent"
+      ],
+      "priority_level": 50,
+      "is_critical": false,
+      "depends_on": [],
+      "category": "ide"
+    }
+  ],
+  "environment_variables": [],
+  "post_install_commands": [],
+  "ai_reasoning": "Core environment required for Lumi: Architect: Git for source control, Python 3.11+ runtime for the Brain engine, and VS Code for development."
+}

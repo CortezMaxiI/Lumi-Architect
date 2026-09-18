@@ -71,7 +71,7 @@
     "PackageDefinition": {
       "type": "object",
       "description": "Definition of a single package to install.",
-      "required": ["package_id", "package_manager", "priority_level", "validation_command"],
+      "required": ["package_id", "package_manager", "priority_level", "version_check_command"],
       "properties": {
         "package_id": {
           "type": "string",

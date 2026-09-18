@@ -24,6 +24,7 @@ wheels/
 .env
 .env.local
 .env.*
+!.env.example
 .venv/
 venv/
 env/
@@ -40,3 +41,17 @@ ENV/
 .idea/
 *.swp
 *.swo
+
+# Node / Frontend
+node_modules/
+lumi-ui/node_modules/
+lumi-ui/dist/
+.npm/
+
+# Testing & Cache
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Dynamic Output Manifests (preserve test_manifest.json)
+Lumi-Architect/output/manifest_*.json
