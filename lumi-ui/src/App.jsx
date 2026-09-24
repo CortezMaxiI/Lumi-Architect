@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import ManifestViewer from './ManifestViewer';
 import ForgeButton from './ForgeButton';
+import LiveTerminal from './LiveTerminal';
 import { Terminal, Code, Cpu } from 'lucide-react';
 import './index.css';
 
@@ -9,14 +10,16 @@ function App() {
   const [manifest, setManifest] = useState(null);
   const [isPlanning, setIsPlanning] = useState(false);
   const [isForging, setIsForging] = useState(false);
-  const [forgeOutput, setForgeOutput] = useState('');
+  const [terminalLogs, setTerminalLogs] = useState([]);
+  const [forgeStage, setForgeStage] = useState('IDLE');
 
   const handlePlan = async () => {
     if (!prompt.trim()) return;
     
     setIsPlanning(true);
     setManifest(null);
-    setForgeOutput('');
+    setTerminalLogs([]);
+    setForgeStage('IDLE');
     
     try {
       const response = await fetch('http://127.0.0.1:8000/api/forge/plan', {
@@ -27,35 +30,80 @@ function App() {
       const data = await response.json();
       if (data.success) {
         setManifest(data.manifest);
+        setTerminalLogs([
+          `[OK] Generated manifest for "${data.manifest?.target_environment?.name || 'environment'}"`,
+          `[INFO] Inferred languages: ${(data.manifest?.target_environment?.inferred_languages || []).join(', ')}`,
+          `[INFO] Inferred packages: ${(data.manifest?.packages || []).map(p => p.display_name).join(', ')}`,
+          `[INFO] Ready to forge. Click 'INITIATE FORGE' to begin execution.`
+        ]);
       }
     } catch (error) {
       console.error("Error connecting to API:", error);
+      setTerminalLogs([`[FAIL] Failed to communicate with Brain API: ${error.message}`]);
     } finally {
       setIsPlanning(false);
     }
   };
 
-  const handleForge = async () => {
-    if (!manifest) return;
+  const handleForge = () => {
+    if (!manifest || isForging) return;
     
     setIsForging(true);
-    try {
-      const response = await fetch('http://127.0.0.1:8000/api/forge/execute', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ manifest }),
-      });
-      const data = await response.json();
-      if (data.success) {
-        setForgeOutput("Forge Execution Successful!\n" + data.output);
-      } else {
-        setForgeOutput("Forge Execution Failed.\n" + data.error);
+    setForgeStage('CONNECTING');
+    setTerminalLogs((prev) => [
+      ...prev,
+      '',
+      '======================================================================',
+      '  INITIATING LIVE WEBSOCKET FORGE PIPELINE',
+      '======================================================================',
+      '[INFO] Connecting to ws://127.0.0.1:8000/ws/forge...'
+    ]);
+
+    const wsUrl = 'ws://127.0.0.1:8000/ws/forge';
+    const socket = new WebSocket(wsUrl);
+
+    socket.onopen = () => {
+      setForgeStage('FORGING');
+      setTerminalLogs((prev) => [...prev, '[OK] WebSocket connected. Transmitting manifest payload...']);
+      socket.send(JSON.stringify({ manifest, dry_run: false }));
+    };
+
+    socket.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === 'log') {
+          setTerminalLogs((prev) => [...prev, data.line]);
+        } else if (data.type === 'status') {
+          setForgeStage(data.stage);
+          if (data.message) {
+            setTerminalLogs((prev) => [...prev, `[INFO] ${data.message}`]);
+          }
+        } else if (data.type === 'complete') {
+          setForgeStage(data.stage || (data.success ? 'COMPLETED' : 'FAILED'));
+          setIsForging(false);
+          const finishMsg = data.success
+            ? '[OK] Forge execution and post-install health verification completed!'
+            : '[FAIL] Forge completed with errors. See output logs above.';
+          setTerminalLogs((prev) => [...prev, finishMsg]);
+        } else if (data.type === 'error') {
+          setForgeStage('FAILED');
+          setIsForging(false);
+          setTerminalLogs((prev) => [...prev, `[FAIL] Error: ${data.message}`]);
+        }
+      } catch (err) {
+        setTerminalLogs((prev) => [...prev, event.data]);
       }
-    } catch (error) {
-      setForgeOutput("Connection error: " + error.message);
-    } finally {
+    };
+
+    socket.onerror = (err) => {
+      setForgeStage('FAILED');
       setIsForging(false);
-    }
+      setTerminalLogs((prev) => [...prev, '[FAIL] Connection error with WebSocket server.']);
+    };
+
+    socket.onclose = () => {
+      setIsForging(false);
+    };
   };
 
   return (
@@ -95,12 +143,11 @@ function App() {
             </button>
           </div>
           
-          {forgeOutput && (
-            <div style={{ marginTop: '2rem', padding: '1rem', background: 'rgba(0,0,0,0.5)', borderRadius: '8px', overflowY: 'auto' }}>
-              <h3 style={{ margin: '0 0 10px 0', color: 'var(--accent-green)' }}>Forge Output</h3>
-              <pre style={{ margin: 0, whiteSpace: 'pre-wrap', fontSize: '0.9rem' }}>{forgeOutput}</pre>
-            </div>
-          )}
+          <LiveTerminal 
+            logs={terminalLogs} 
+            stage={forgeStage} 
+            isRunning={isForging} 
+          />
         </div>
         
         <div className="right-panel glass-panel">

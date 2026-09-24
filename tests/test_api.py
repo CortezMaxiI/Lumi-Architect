@@ -1,4 +1,4 @@
-﻿"""
+"""
 Integration tests for FastAPI endpoints in api.py.
 """
 
@@ -43,3 +43,27 @@ def test_forge_execute_rejects_invalid_manifest():
     )
     assert response.status_code == 422
     assert "failed architecture schema validation" in response.json()["detail"]
+
+
+def test_websocket_forge_rejects_missing_manifest():
+    """Verify WebSocket rejects empty payloads."""
+    with client.websocket_connect("/ws/forge") as websocket:
+        websocket.send_json({})
+        data = websocket.receive_json()
+        assert data["type"] == "error"
+        assert "Missing manifest" in data["message"]
+
+
+def test_websocket_forge_rejects_invalid_manifest():
+    """Verify WebSocket rejects malformed manifests with schema error."""
+    with client.websocket_connect("/ws/forge") as websocket:
+        websocket.send_json({
+            "manifest": {
+                "manifest_version": "1.0.0",
+                "target_environment": {"name": "invalid-env"}
+            }
+        })
+        data = websocket.receive_json()
+        assert data["type"] == "error"
+        assert "schema validation" in data["message"]
+
